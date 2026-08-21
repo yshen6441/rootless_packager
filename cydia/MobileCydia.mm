@@ -5720,7 +5720,16 @@ bool DepSubstrate(const pkgCache::VerIterator &iterator) {
 
 - (void) viewWillAppear:(BOOL)animated {
     [[[self navigationController] navigationBar] setBarStyle:UIBarStyleBlack];
+    [[[self navigationController] navigationBar] setTitleTextAttributes:[NSDictionary
+        dictionaryWithObjectsAndKeys:[UIColor whiteColor], NSForegroundColorAttributeName, nil]];
     [super viewWillAppear:animated];
+}
+
+- (void) setNavigationBarStyle:(NSString *)name {
+    /* The progress page runs on a black background; force the black bar
+     * style (white title text) regardless of what the web page requests,
+     * otherwise the title renders black-on-black and is invisible. */
+    [[[self navigationController] navigationBar] setBarStyle:UIBarStyleBlack];
 }
 
 - (void) close {
@@ -7549,7 +7558,8 @@ static void HomeControllerReachabilityCallback(SCNetworkReachabilityRef reachabi
 - (void) useFilter {
 @synchronized (self) {
     [self setFilter:[](Package *package) {
-        return [package upgradableAndEssential:YES] || [package visible];
+        /* 只显示已安装且有更新的包，未安装的包不进入变更列表 */
+        return [package upgradableAndEssential:YES] && ![package uninstalled];
     }];
 
     [self setSorter:[](NSMutableArray *packages) {
@@ -7785,9 +7795,10 @@ static void HomeControllerReachabilityCallback(SCNetworkReachabilityRef reachabi
         else
             textField = MSHookIvar<UITextField *>(search_, "_searchField");
 
-        [textField setAutoresizingMask:UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleTopMargin | UIViewAutoresizingFlexibleBottomMargin];
         [textField setEnablesReturnKeyAutomatically:NO];
-        [[self navigationItem] setTitleView:textField];
+
+        [search_ setAutoresizingMask:UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleTopMargin | UIViewAutoresizingFlexibleBottomMargin];
+        [[self navigationItem] setTitleView:search_];
 
         if (query != nil)
             [search_ setText:query];
