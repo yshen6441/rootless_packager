@@ -61,6 +61,8 @@
 #include <sstream>
 #include <string>
 
+#include <cctype>
+
 #include "fdstream.hpp"
 
 /* iOS 15+ SDKs no longer expose the private CFUniChar header used by
@@ -3994,12 +3996,19 @@ class CydiaLogCleaner :
 static bool IsKnownBigBossLegacySHA1Warning(const std::string &message) {
     // Keep verification enabled, but do not surface the one known
     // BigBoss legacy-signature compatibility notice as a Refresh warning.
-    // Scope this narrowly to BigBoss's canonical repo path, exact signing
-    // fingerprint, and the SHA1 weak-algorithm message. All other APT/GPG
-    // warnings and errors continue to be shown normally.
-    return message.find("apt.thebigboss.org/repofiles/cydia") != std::string::npos &&
-        message.find("A9C96A37115894A23B894107694D17D38764B4F4") != std::string::npos &&
-        message.find("uses weak algorithm (SHA1)") != std::string::npos;
+    // Scope this narrowly to BigBoss's canonical repo path and exact signing
+    // fingerprint. The weak-algorithm wording varies by gpg localization and
+    // version, so match "SHA1" / "SHA 1" case-insensitively instead of a fixed
+    // English phrase. All other APT/GPG warnings and errors remain visible.
+    if (message.find("apt.thebigboss.org/repofiles/cydia") == std::string::npos)
+        return false;
+    if (message.find("A9C96A37115894A23B894107694D17D38764B4F4") == std::string::npos)
+        return false;
+    std::string lower(message.size(), '\0');
+    for (size_t i(0); i != message.size(); ++i)
+        lower[i] = static_cast<char>(std::tolower(static_cast<unsigned char>(message[i])));
+    return lower.find("sha1") != std::string::npos ||
+        lower.find("sha 1") != std::string::npos;
 }
 
 - (bool) popErrorWithTitle:(NSString *)title {
