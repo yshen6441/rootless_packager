@@ -94,6 +94,7 @@ static inline bool CYCharacterIsLetter(UniChar character) {
 #include <apt-pkg/sptr.h>
 #include <apt-pkg/strutl.h>
 #include <apt-pkg/tagfile.h>
+#include <apt-pkg/version.h>
 
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -3073,16 +3074,17 @@ static pkgCache::VerIterator CYRootlessCandidateVersion(pkgCacheFile &cache, pkg
 - (BOOL) upgradableAndEssential:(BOOL)essential {
     _profile(Package$upgradableAndEssential)
         pkgCache::VerIterator current(iterator_.CurrentVer());
-        if (current.end()) {
-            if (essential && essential_) {
-                return (strcmp(version_.Arch(), common_arch)==0);
-            } else {
-                return false;
-            }
-        } else {
-            pkgDepCache::StateCache &state([database_ cache][iterator_]);
-            return state.Upgradable() && version_.CompareVer(current) > 0;
-        }
+        if (current.end())
+            /* Not installed: never offer it as an "upgrade". */
+            return false;
+        else if (version_.end())
+            /* No candidate version: nothing to upgrade to. */
+            return false;
+        else
+            /* Compare candidate against the installed version numerically
+             * instead of comparing VerIterators: an iterator mismatch is not
+             * an upgrade. Only a strictly higher candidate version counts. */
+            return _system->VS->CmpVersion(version_.VerStr(), current.VerStr()) > 0;
     _end
 }
 
@@ -7567,8 +7569,7 @@ static void HomeControllerReachabilityCallback(SCNetworkReachabilityRef reachabi
 - (void) useFilter {
 @synchronized (self) {
     [self setFilter:[](Package *package) {
-        /* 只显示已安装且有更新的包，未安装的包不进入变更列表 */
-        return [package upgradableAndEssential:YES] && ![package uninstalled];
+        return [package upgradableAndEssential:YES] || [package visible];
     }];
 
     [self setSorter:[](NSMutableArray *packages) {
